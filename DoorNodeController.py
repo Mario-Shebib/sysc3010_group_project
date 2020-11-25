@@ -10,16 +10,23 @@ from thingspeak import Channel
 from transport import Connection
 from message import *
 
-from hardware import RangeFinder #VL53L0X
-from hardware import mlx90614
-from hardware import DoorActuator
-from hardware import RC522
-from hardware import LED
+
 
 class DoorNodeController:
-
+    if self.indicator != null:
+        from hardware import LED
+    if self.range_finder != null:
+        from hardware import RangeFinder #VL53L0X
+    if self.ir_temp_sensor != null:
+        from hardware import mlx90614
+    if self.door_lock != null:
+        from hardware import DoorActuator
+    if self.nfc_reader != null:
+        from hardware import RC522
+    
+    #
     def __init__(self, address, limit_distance, LED, RangeFinder,
-                DoorActuator, MLX90614, RC522):
+                 DoorActuator, MLX90614, RC522):
 
         self.thingspeak_chan = Channel
         self.server_conn = Connection
@@ -47,33 +54,34 @@ class DoorNodeController:
             exit(1)
         
         # Get ThingSpeak channel object
-        self.thingspeak_chan = Channel(1222699, write_key=write_key, read_key=read_key)
-        #set up transaction id
-
-        self.server_conn = Connection(self.thingspeak_chan, self.address, "control_server")
+        self.thingspeak_chan = Channel(1222699, write_key=write_key,
+                                       read_key=read_key)
+        self.server_conn = Connection(self.thingspeak_chan,
+                                      self.address, "control_server")
         self.server_conn.established.wait()  
         while True:
             next_person = False
+            #set up transaction id which keeps track of order of signals.
             self.tid = 0
-            while next_person == False:
             badge_id = self.nfc_reader.read_card()
             handle_badge_tap(badge_id)
-            data = self.server_conn.recv()
-            try:
-                rsp = Message.from_bytes(data)
-            except:
-                print(f"Received invalid message \"{data}\"")
-                exit(1)
-            if type(rsp) == InformationRequestMessage:
-                handle_information_request(rsp)
-            elif type(rsp) == AccessResponseMessage:
-                next_person = handle_access_response(rsp)
-            elif type(rsp) == DoorStateUpdateMessage:
-                handle_door_state_update(rsp)
-            else:
-                print(f"Received invalid message \"{data}\"")
-                exit(1)
-            self.tid += 1
+            while next_person == False:
+                data = self.server_conn.recv()
+                try:
+                    rsp = Message.from_bytes(data)
+                except:
+                    print(f"Received invalid message \"{data}\"")
+                    exit(1)
+                if type(rsp) == InformationRequestMessage:
+                    handle_information_request(rsp)
+                elif type(rsp) == AccessResponseMessage:
+                    next_person = handle_access_response(rsp)
+                elif type(rsp) == DoorStateUpdateMessage:
+                    handle_door_state_update(rsp)
+                else:
+                    print(f"Received invalid message \"{data}\"")
+                    exit(1)
+                self.tid += 1
 
     def handle_badge_tap(self, badge_id):
 
@@ -81,18 +89,19 @@ class DoorNodeController:
         self.server_conn.send(message.to_bytes())
         
     def handle_information_request(self, message):
-
+        
         distance = 0
         distance = self.range_finder.get_range()
-        if(self.dist_from_temp_sensor > distance > 300) :
-            self.indicator.set_colour(LEDColour.YELLOW)
+        self.indicator.set_colour(LEDColour.YELLOW)          
         while(distance > self.dist_from_temp_sensor) :
             distance = self.range_finder.get_range()
-        self.indicator.set_colour(LEDColour.RED) 
+
         ambient_temp = self.ir_temp_sensor.get_ambient_temp()
         person_temp = self.ir_temp_sensor.get_ir_temp()
         payload = TemperatureInfoPayload(ambient_temp,person_temp)
-        message = InformationResponseMessage(self.tid, InformationType.USER_TEMPERATURE, payload)
+        self.indicator.set_colour(LEDColour.RED) 
+        message = InformationResponseMessage(self.tid,
+                        InformationType.USER_TEMPERATURE, payload)
         self.server_conn.send(message.to_bytes())
            
         
@@ -108,28 +117,25 @@ class DoorNodeController:
             self.current_state = message.state
             return self.current_state
         else:
-            print("Fail did not receive a valid DoorState update message")
+            msg = ("Fail, did not receive a valid DoorState "\
+                   "update message.")
+
+            print(msg)
             exit(1)
 
     def handle_access_response(self, message):
         
-        if message.accepted == True:
+        if message.accepted:
              self.indicator.set_colour(LED.LEDColour.GREEN)
              self.door_lock.open(self)
              return True
         else:
              #door stays locked
              self.door_lock.lock(self)
-             return True
-
-    
-
+             return True    
 #needs to be tested with different equipment
 #more comments
-#need maximum capacity system
-#tid being set and incremented within while loop
-
 #hardware stubs
-#as soon as we get an information requests turn yellow maybe?
-#turn led yellow until sending information response
+
+
 
