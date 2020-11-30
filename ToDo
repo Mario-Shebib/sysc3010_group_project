@@ -1,0 +1,6 @@
+door_node_controller.py:6:2: W0511: TODO: (fixme)
+door_node_controller.py:1:0: C0111: Missing module docstring (missing-docstring)
+door_node_controller.py:14:0: R0902: Too many instance attributes (11/7) (too-many-instance-attributes)
+door_node_controller.py:21:4: R0913: Too many arguments (8/5) (too-many-arguments)
+door_node_controller.py:102:16: W0702: No exception type(s) specified (bare-except)
+door_node_controller.py:80:8: W0612: Unused variable 'error' (unused-variable)
